@@ -1,0 +1,8 @@
+m+k+24, perm: 42, time: 88.196466ms, throughtput: 477.27
+m+k+24, perm: 85, time: 106.619456ms, throughtput: 801.89
+m+k+24, perm: 170, time: 170.071608ms, throughtput: 1000.00
+m+k+24, perm: 341, time: 327.987873ms, throughtput: 1042.81
+m+k+24, perm: 682, time: 596.784765ms, throughtput: 1144.30
+m+k+24, perm: 1365, time: 1.162775103s, throughtput: 1174.70
+m+k+24, perm: 2730, time: 2.321433461s, throughtput: 1176.22
+m+k+24, perm: 5461, time: 5.028617271s, throughtput: 1086.12

@@ -1,6 +1,3 @@
-use std::fmt::Debug;
-use std::marker::PhantomData;
-
 use p3_challenger::DuplexChallenger;
 use p3_circle::CirclePcs;
 use p3_commit::ExtensionMmcs;
@@ -14,15 +11,15 @@ use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_uni_stark::{prove, verify, StarkConfig};
 use rand::{random, thread_rng};
+use std::marker::PhantomData;
 use tracing_forest::util::LevelFilter;
 use tracing_forest::ForestLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Registry};
 
-const NUM_HASHES: usize = 1365;
-
-fn main() -> Result<(), impl Debug> {
+fn main() {
+    let num_threads: usize = p3_maybe_rayon::prelude::current_num_threads();
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
@@ -62,29 +59,40 @@ fn main() -> Result<(), impl Debug> {
 
     type Challenger = DuplexChallenger<Val, Perm, 16, 8>;
 
-    let fri_config = FriConfig {
-        log_blowup: 1,
-        num_queries: 100,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    };
-
     type Pcs = CirclePcs<Val, ValMmcs, ChallengeMmcs>;
-    let pcs = Pcs {
-        mmcs: val_mmcs,
-        fri_config,
-        _phantom: PhantomData,
-    };
 
     type MyConfig = StarkConfig<Pcs, Challenge, Challenger>;
-    let config = MyConfig::new(pcs);
 
-    let inputs = (0..NUM_HASHES).map(|_| random()).collect::<Vec<_>>();
-    let trace = generate_trace_rows::<Val>(inputs);
+    for n in (10..18).map(|k| 1 << k) {
+        let num_perms = n / 24;
 
-    let mut challenger = Challenger::new(perm.clone());
-    let proof = prove(&config, &KeccakAir {}, &mut challenger, trace, &vec![]);
+        let fri_config = FriConfig {
+            log_blowup: 1,
+            num_queries: 100,
+            proof_of_work_bits: 16,
+            mmcs: challenge_mmcs.clone(),
+        };
+        let pcs = Pcs {
+            mmcs: val_mmcs.clone(),
+            fri_config,
+            _phantom: PhantomData,
+        };
+        let config = MyConfig::new(pcs);
 
-    let mut challenger = Challenger::new(perm);
-    verify(&config, &KeccakAir {}, &mut challenger, &proof, &vec![])
+        let mut challenger = Challenger::new(perm.clone());
+        let inputs = (0..num_perms).map(|_| random()).collect::<Vec<_>>();
+
+        let start = std::time::Instant::now();
+
+        let trace = generate_trace_rows::<Val>(inputs);
+        let proof = prove(&config, &KeccakAir {}, &mut challenger, trace, &vec![]);
+
+        let t = start.elapsed();
+
+        let mut challenger = Challenger::new(perm.clone());
+        verify(&config, &KeccakAir {}, &mut challenger, &proof, &vec![]).unwrap();
+
+        let tp = 1000f64 * num_perms as f64 / t.as_millis() as f64;
+        println!("m+p+{num_threads}, perm: {num_perms}, time: {t:?}, throughtput: {tp:.02}");
+    }
 }
